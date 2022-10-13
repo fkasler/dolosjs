@@ -1,0 +1,34 @@
+#!/bin/bash 
+### BEGIN INIT INFO 
+# Provides:        dolos_service
+# Required-Start:  $network $remote_fs $syslog 
+# Required-Stop:   $network $remote_fs $syslog 
+# Default-Start:   3 
+# Default-Stop: 
+# Short-Description: Start DolosJS and wvdial
+### END INIT INFO 
+. /lib/lsb/init-functions 
+case "$1" in     
+    start)         
+        #run the attack right away, and then do the callback
+        #tmux new -s dolosjs -d /usr/bin/node /root/tools/dolosjs/dolos.js
+        #screen -S dolosjs -md /usr/bin/node /root/tools/dolosjs/dolos.js
+        #give the modem time to switch from USB to Modem mode
+        sleep 10
+        if [ -e /dev/ttyUSB0 ]; then             
+            now=`date +'%Y-%m-%d %H:%M:%S'`             
+            echo "" >>/var/log/wvdial.log             
+            echo "############################################" >>/var/log/wvdial.log             
+            echo "## Script start time: $now ##" >>/var/log/wvdial.log             
+            echo "############################################" >>/var/log/wvdial.log             
+            #ip r del default
+            wvdial Verizon >>/var/log/wvdial.log 2>&1 &             
+            log_action_msg "cellular modem link dialed"         
+         else             
+            log_failure_msg "failed to find cellular modem device"         
+         fi         
+         ;;     
+     stop)         
+         pkill -f wvdial         
+         ;; 
+esac

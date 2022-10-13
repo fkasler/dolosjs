@@ -1,0 +1,18 @@
+{
+  "name": "dolosjs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dateformat": "^3.0.3",
+    "dhcp": "^0.2.20",
+    "fastify": "^3.21.5",
+    "fastify-socket.io": "^2.0.1",
+    "pcap": "^3.1.0"
+  }
+}

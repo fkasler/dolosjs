@@ -1,0 +1,21 @@
+#!/bin/bash 
+### BEGIN INIT INFO 
+# Provides:        dolos_service
+# Required-Start:  $network $remote_fs $syslog 
+# Required-Stop:   $network $remote_fs $syslog 
+# Default-Start:   3 
+# Default-Stop: 
+# Short-Description: Create a Dolos Cloak Ethernet Interface
+### END INIT INFO 
+. /lib/lsb/init-functions 
+case "$1" in     
+    start)         
+         #allow us to pass traffic between interfaces
+         echo 1 > /proc/sys/net/ipv4/ip_forward
+         #tmux new -s dolosjs -d /usr/bin/node /root/tools/dolosjs/dolos.js
+         #screen -S dolosjs -md /usr/bin/node /root/tools/dolosjs/dolos.js
+         ;;     
+     stop)         
+         pkill -f node        
+         ;; 
+esac

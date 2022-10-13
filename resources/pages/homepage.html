@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+
+<body>
+
+  <head>
+    <title>Dolos Cloak</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/bootstrap.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      $(function () {
+        var socket = io();
+
+        socket.on('network_info', function (message) {
+          var network_info = message
+          console.log('network_info')
+          console.log(network_info)
+          $('#host_ip').text(network_info.client_ip)
+          $('#host_mac').text(network_info.client_mac)
+          $('#gateway_ip').text(network_info.gateway_ip)
+          $('#gateway_mac').text(network_info.gateway_mac)
+          $('#host_ttl').text(network_info.client_ttl)
+          $('#host_name').text(network_info.client_name)
+          $('#dhcp_server').text(network_info.dhcp_server)
+          $('#ntp_server').text(network_info.ntp_server)
+          $('#subnet_mask').text(network_info.subnet_mask)
+          $('#search_domain').text(network_info.search_domain)
+          let dns_array = network_info.dns_servers
+          dns_array.forEach(function(dns_server){
+            if(!$("#" + $.escapeSelector(`${dns_server}`))[0]){
+              $('#dns_servers').append(`
+                <tr class="dns_server" id="${dns_server}">
+                  <td>${dns_server}</td>
+                </tr>
+              `)
+            }
+          })
+        })
+        socket.on('arp_info', function (message) {
+          console.log('arpinfo')
+          var arp_entries = message
+          for(var key in arp_entries){
+            if(!$("#" + $.escapeSelector(`${arp_entries[key]}`))[0]){
+              let ip = key
+              let mac = arp_entries[key]
+              $.get("/get_vendor?mac_addr=" + arp_entries[key], function (vendor) {
+                console.log(vendor)
+                $('#neighbors').append(`
+                  <tr id="${mac}">
+                    <td>${ip}</td>
+                    <td>${mac}</td>
+                    <td>${vendor}</td>
+                  </tr>
+                `)
+              })
+            }
+          }
+        })
+        //ask for current state on load and then ensure updates every 10 seconds
+        socket.emit('get_update')  
+        setInterval(function(){
+          socket.emit('get_update')        
+        }, 10000)
+        socket.on('bridge_update', function (message) {
+          console.log(message)
+          if(message.type == 'new_arp'){
+            let new_arp = message.data
+            console.log('new_arp')
+            console.log(new_arp)
+            if(!$("#" + $.escapeSelector(`${new_arp.mac}`))[0]){
+              $.get("/get_vendor?mac_addr=" + new_arp.mac, function (vendor) {
+                console.log(vendor)
+                $('#neighbors').append(`
+                  <tr id="${arp_entries[key]}">
+                    <td>${new_arp.ip}</td>
+                    <td>${new_arp.mac}</td>
+                    <td>${vendor}</td>
+                  </tr>
+                `)
+              })
+            }
+          }
+          if(message.type == 'dns_update'){
+            let dns_array = message.data
+            console.log('dns_array')
+            console.log(dns_array)
+            dns_array.forEach(function(dns_server){
+              if(!$("#" + $.escapeSelector(`${dns_server}`))[0]){
+                $('#dns_servers').append(`
+                  <tr class="dns_server" id="${dns_server}">
+                    <td>${dns_server}</td>
+                  </tr>
+                `)
+              }
+            })
+          }
+          if(message.type == 'cimagm'){
+            var network_info = message.data
+            console.log('client_info')
+            console.log(network_info)
+            $('#host_ip').text(network_info.client_ip)
+            $('#host_mac').text(network_info.client_mac)
+            $('#gateway_ip').text(network_info.gateway_ip)
+            $('#gateway_mac').text(network_info.gateway_mac)
+            $('#host_ttl').text(network_info.client_ttl)
+            $('#host_name').text(network_info.client_name)
+            $('#dhcp_server').text(network_info.dhcp_server)
+            $('#ntp_server').text(network_info.ntp_server)
+            $('#subnet_mask').text(network_info.subnet_mask)
+            $('#search_domain').text(network_info.search_domain)
+          }
+          if(message.type == 'gimacm'){
+            var network_info = message.data
+            console.log('gateway_info')
+            console.log(network_info)
+            $('#host_ip').text(network_info.client_ip)
+            $('#host_mac').text(network_info.client_mac)
+            $('#gateway_ip').text(network_info.gateway_ip)
+            $('#gateway_mac').text(network_info.gateway_mac)
+            $('#host_ttl').text(network_info.client_ttl)
+            $('#host_name').text(network_info.client_name)
+            $('#dhcp_server').text(network_info.dhcp_server)
+            $('#ntp_server').text(network_info.ntp_server)
+            $('#subnet_mask').text(network_info.subnet_mask)
+            $('#search_domain').text(network_info.search_domain)
+          }
+          if(message.type == 'client_ttl'){
+            $("#client_ttl").text(message.data)
+          }
+        });
+
+        $(document).on('click', '#lookup_hostname', function () {
+          $.ajax(
+            "/lookup_hostname", 
+            {
+              type : 'GET'
+            } 
+          ).done(function(data){
+            alert(data)
+          })
+        })
+        
+        $(document).on('click', '#send_dhcp_probe', function () {
+          $.ajax(
+            "/send_dhcp_probe", 
+            {
+              type : 'GET'
+            } 
+          ).done(function(data){
+            alert(data)
+          })
+        })
+        
+        $(document).on('click', '#allow_internet_traffic', function () {
+          $.ajax(
+            "/allow_internet_traffic", 
+            {
+              type : 'GET'
+            } 
+          ).done(function(data){
+            alert(data)
+          })
+        })
+
+        $(document).on('click', '#get_resolv_conf', function () {
+            var resolv_conf = ''
+            if($("#search_domain").text() != ''){
+              resolv_conf += "search " + $("#search_domain").text().trim()
+            }
+            $(".dns_server").each(function(){
+              resolv_conf += "\nnameserver " + $(this).text().trim()
+            })
+            copy_to_clipboard(resolv_conf)
+            alert("Resolv Conf copied to clipboard. Go paste in your own /etc/resolv.conf")
+        })
+
+        $(document).on('click', '#current_log', function () {
+          window.location = '/current_log'
+        })
+
+        copy_to_clipboard = function (data) {
+          // Create a dummy input to copy the string inside it
+          var dummy = document.createElement("textarea");
+          // Add it to the document
+          document.body.appendChild(dummy);
+          // Set its ID
+          dummy.setAttribute("id", "dummy_id");
+          // Output the array into it
+          document.getElementById("dummy_id").value = data;
+          // Select it
+          dummy.select();
+          // Copy its contents
+          document.execCommand("copy");
+          // Remove it as its not needed anymore
+          document.body.removeChild(dummy);
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="button_bar">
+      <button id="lookup_hostname">Lookup Hostname</button>
+      <!-- <button id="send_dhcp_probe">Send DHCP Probe</button> -->
+      <button id="allow_internet_traffic">Allow Outbound Internet Connections</button>
+      <button id="get_resolv_conf">Copy Resolv.conf</button>
+      <button id="current_log">View Command Log</button>
+    </div>
+    <table class="table" id="hosts">
+      <tr>
+        <th>Host IP</th>
+        <th>Host MAC</th>
+        <th>Host Name</th>
+        <th>Gateway IP</th>
+        <th>Gateway MAC</th>
+      </tr>
+      <tr>
+        <td id="host_ip"></td>
+        <td id="host_mac"></td>
+        <td id="host_name"></td>
+        <td id="gateway_ip"></td>
+        <td id="gateway_mac"></td>
+      </tr>
+    </table>
+    <table class="table" id="network">
+      <tr>
+        <th>Host TTL</th>
+        <th>Subnet Mask</th>
+        <th>DHCP Server</th>
+        <th>Search Domain</th>
+        <th>NTP Server</th>
+      </tr>
+      <tr>
+        <td id="host_ttl"></td>
+        <td id="subnet_mask"></td>
+        <td id="dhcp_server"></td>
+        <td id="search_domain"></td>
+        <td id="ntp_server"></td>
+      </tr>
+    </table>
+    <table class="table" id="dns_servers">
+      <tr>
+        <th>DNS Servers</th>
+      </tr>
+    </table>
+    <table class="table" id="neighbors">
+      <tr>
+        <th>ARP Neighbor IP</th>
+        <th>ARP Neighbor MAC</th>
+        <th>Vendor</th>
+      </tr>
+    </table>
+  </body>
+</html>
