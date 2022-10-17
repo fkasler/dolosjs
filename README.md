@@ -52,6 +52,8 @@ User Name: root
 Password: fa
 ```
 
+You will need to run the setup as root.
+
 Plug it into your network with the WAN port. It should get a DHCP address, and expose port 22 for you to ssh in and configure it. From here, take the following steps to setup the Dolos JS project on the device:
 
 #### First Login
@@ -63,6 +65,8 @@ passwd
 #paste in your public key for easy access
 vim .ssh/authorized_keys
 ```
+
+Also, keep in mind that there is a built-in "pi" user. I recommend changing the password on the "pi" account as well.
 
 ## The Next 3 Sections Cover Setup Instructions for Wifi/Ethernet OR LTE Cellular OR Network Based Callbacks. Skip to the Relevant Section:
 
@@ -84,7 +88,7 @@ cd tools/dolosjs/
 apt install unzip
 unzip dolos.zip
 rm dolos.zip
-cd setup/setup/wifi_mgmt/
+cd setup/wifi_mgmt/
 bash setup.sh
 ```
 
