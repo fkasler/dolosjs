@@ -212,7 +212,7 @@ Much thanks to Joff Thyer and his [blog](https://www.blackhillsinfosec.com/pente
 
 You will want the device to call home once it gets a WAN connection. To do this, modify /etc/ppp/ip-up.d/dolos\_callback and replace it with a callback of your choice. The example shows how simple it is to join a Zerotier network as a callback. You could also initiate a reverse shell, reverse SSH tunnel, VPN callback, etc. 
 
-The project is designed to expect a management subdomain of 172.31.255.0/24. To make live easy as an operator, it is best to set up a OpenVPN or Zerotier network in that range. That way, your Dolos device and laptop will both recieve an IP in that range, and you just need to set up a few routes and DNS settings on your laptop/VM to access the target network for post-exploitation.
+The project is designed to expect a management subdomain of 172.31.255.0/24. To make life easy as an operator, it is best to set up a OpenVPN or Zerotier network in that range. That way, your Dolos device and laptop will both recieve an IP in that range, and you just need to set up a few routes and DNS settings on your laptop/VM to access the target network for post-exploitation.
 
 Finally, set the attack to autorun via the finish\_setup.sh script: 
 
@@ -409,7 +409,7 @@ In theory, there is this thing called "IEEE 802.1AE", per Wikipedia:
 
 *(also known as MACsec) is a network security standard that operates at the medium access control layer and defines connectionless data confidentiality and integrity for media access independent protocols. It is standardized by the IEEE 802.1 working group.*
 
-But hardly any devices support it as of 2022, so it's unlikely to run into this control. It is also likely too cost prohibitive for most organizations to implement and comes with a significant decrease in network speeds. Finally, even orgs that do implement it are likely to have to life with gaps in the control because of devices like printers, etc. that must be on the network but do not support MACsec. 
+But hardly any devices support it as of 2022, so it's unlikely to run into this control. It is also likely too cost prohibitive for most organizations to implement and comes with a significant decrease in network speeds. Finally, even orgs that do implement it are likely to have to live with gaps in the control because of devices like printers, etc. that must be on the network but do not support MACsec. 
 
 ## License
 
