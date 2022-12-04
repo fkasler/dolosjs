@@ -5,7 +5,7 @@ This project is a full re-write of the NAC bypass technique implemented in the o
 
 - Asynchronous packet sniffing implemented in Node.js
 - Avoids python and python dependency hell altogether (NPM > PIP... imho)
-- Leverages a better techniqu to automatically set up the attack. Original project just inspected DHCP, EPOL, and TTLs. Current project inspects ARP, DHCP, DNS, and all IP traffic to determine the required information very quickly.
+- Leverages a better technique to automatically set up the attack. Original project just inspected DHCP, EPOL, and TTLs. Current project inspects ARP, DHCP, DNS, and all IP traffic to determine the required information very quickly.
 - New web interface for operators to check the status of the attack and make some config tweaks on the fly
 - New management interface IP scheme that allows for callbacks like Zerotier over LTE WAN
 - Wi-Fi, ETHERNET, and LTE config examples
