@@ -8,8 +8,8 @@ class ArpTable extends EventEmitter {
     var arptable = this
 
     //listen for ARP so we can manually update the OS arptables
-    var arp_listener = pcap.createSession(network_interface, { filter: "arp" })
-    arp_listener.on('packet', function (raw_packet) {
+    this.arp_listener = pcap.createSession(network_interface, { filter: "arp" })
+    this.arp_listener.on('packet', function (raw_packet) {
       let packet = pcap.decode.packet(raw_packet)
       arptable.arp_packet(packet)
     })
@@ -28,31 +28,24 @@ class ArpTable extends EventEmitter {
     //log arp requests
     if(arp_info.operation == 1){
       if(arp_info.sender_ip.toString() != '0.0.0.0'){
-        if(typeof this.entries[arp_info.sender_ip.toString()] == 'undefined'){
-          this.emit('new_arp', {"ip": arp_info.sender_ip.toString(), "mac": arp_info.sender_mac.toString()})
-        }
-        this.entries[arp_info.sender_ip.toString()] = arp_info.sender_mac.toString()
+        this.entries[arp_info.sender_mac.toString()] = arp_info.sender_ip.toString()
         this.emit('arp_entry', arp_info)
-        //console.log(`type:${arp_info.operation} sender: ${arp_info.sender_ip} --> ${arp_info.sender_mac}`)
       }
     }
     //log arp responses
     if(arp_info.operation == 2){
       if(arp_info.sender_ip.toString() != '0.0.0.0'){
-        if(typeof this.entries[arp_info.sender_ip.toString()] == 'undefined'){
-          this.emit('new_arp', {"ip": arp_info.sender_ip.toString(), "mac": arp_info.sender_mac.toString()})
-        }
-        this.entries[arp_info.sender_ip.toString()] = arp_info.sender_mac.toString()
+        this.entries[arp_info.sender_mac.toString()] = arp_info.sender_ip.toString()
       }
       if(arp_info.target_ip.toString() != '0.0.0.0'){
-        if(typeof this.entries[arp_info.target_ip.toString()] == 'undefined'){
-          this.emit('new_arp', {"ip": arp_info.target_ip.toString(), "mac": arp_info.target_mac.toString()})
-        }
-        this.entries[arp_info.target_ip.toString()] = arp_info.target_mac.toString()
+        this.entries[arp_info.target_mac.toString()] = arp_info.target_ip.toString()
         this.emit('arp_entry', arp_info)
-        //console.log(`type:${arp_info.operation} sender: ${arp_info.sender_ip} --> ${arp_info.sender_mac}  target: ${arp_info.target_ip} --> ${arp_info.target_mac} `)
       }
     }
+  }
+
+  close(){
+    this.arp_listener.close()
   }
 
 }

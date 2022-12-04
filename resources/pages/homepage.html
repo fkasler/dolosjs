@@ -45,10 +45,10 @@
           console.log('arpinfo')
           var arp_entries = message
           for(var key in arp_entries){
-            if(!$("#" + $.escapeSelector(`${arp_entries[key]}`))[0]){
-              let ip = key
-              let mac = arp_entries[key]
-              $.get("/get_vendor?mac_addr=" + arp_entries[key], function (vendor) {
+            if(!$("#" + $.escapeSelector(`${key}`))[0]){
+              let mac = key
+              let ip = arp_entries[key]
+              $.get("/get_vendor?mac_addr=" + mac, function (vendor) {
                 console.log(vendor)
                 $('#neighbors').append(`
                   <tr id="${mac}">
@@ -206,7 +206,7 @@
   <body>
     <div id="button_bar">
       <button id="lookup_hostname">Lookup Hostname</button>
-      <!-- <button id="send_dhcp_probe">Send DHCP Probe</button> -->
+      <button id="send_dhcp_probe">Send DHCP Probe</button>
       <button id="allow_internet_traffic">Allow Outbound Internet Connections</button>
       <button id="get_resolv_conf">Copy Resolv.conf</button>
       <button id="current_log">View Command Log</button>

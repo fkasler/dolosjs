@@ -28,6 +28,10 @@ bridge_controller.start_bridge()
 process.stdin.on('keypress', (str, key) => {
   if (key.ctrl && key.name === 'c') {
     bridge_controller.flush_tables(true)
+  } else if (key.name === 'a') {
+    bridge_controller.allow_internet_traffic()
+  } else if (key.name === 'd') {
+    bridge_controller.send_dhcp_probe()
   } else if (key.name === 'i') {
     console.log("Network Info")
     console.log(JSON.stringify(bridge_controller.net_info.print_info(), null, 4))
@@ -111,7 +115,7 @@ fastify.route({
     method: ['GET'],
     url: '/send_dhcp_probe',
     handler: async function (req, reply) {
-        bridge_controller.net_info.send_dhcp_probe()
+        bridge_controller.send_dhcp_probe()
         reply.send('Performing DHCP Discover')
     }
 })
