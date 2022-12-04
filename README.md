@@ -409,7 +409,7 @@ In theory, there is this thing called "IEEE 802.1AE", per Wikipedia:
 
 *(also known as MACsec) is a network security standard that operates at the medium access control layer and defines connectionless data confidentiality and integrity for media access independent protocols. It is standardized by the IEEE 802.1 working group.*
 
-But hardly any devices support it as of 2022, so it's unlikely to run into this control. It is also likely too cost prohibitive for most organizations to implement and comes with a significant decrease in network speeds. Finally, even orgs that do implement it are likely to have to live with gaps in the control because of devices like printers, etc. that must be on the network but do not support MACsec. 
+But hardly any devices support it as of 2022, so it's unlikely to run into this control. It is also likely too cost prohibitive for most organizations to implement and comes with a significant decrease in network speeds. Finally, even orgs that do implement it are likely to have to life with gaps in the control because of devices like printers, etc. that must be on the network but do not support MACsec. 
 
 ## License
 
