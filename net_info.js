@@ -54,20 +54,23 @@ class NetInfo extends EventEmitter {
     if(typeof netinfo.arp_table.entries[ip_info.smac.toString()] != 'undefined'){
       //avoid broadcast issues
       if(ip_info.dmac.toString() != 'ff:ff:ff:ff:ff:ff'){
-      //mismatch with our collected ARP table means it's a gateway to another IP subnet (aka our gateway)
-        if(ip_info.shost.toString() != netinfo.arp_table.entries[ip_info.smac.toString()]){
-          console.log(`Gateway IP:\t${netinfo.arp_table.entries[ip_info.smac.toString()]}`)
-          netinfo.update_value('gateway_ip', netinfo.arp_table.entries[ip_info.smac.toString()], 'Found Gateway IP from ARP Mismatch', ip_info)
-          console.log(`Gateway MAC:\t${ip_info.smac.toString()}`)
-          netinfo.update_value('gateway_mac', ip_info.smac.toString(), 'Found Gateway MAC from ARP Mismatch', ip_info)
-          console.log(`Host IP:\t${ip_info.dhost.toString()}`)
-          netinfo.update_value('client_ip', ip_info.dhost.toString(), 'Found Client IP from ARP Mismatch', ip_info)
-          console.log(`Host MAC:\t${ip_info.dmac.toString()}`)
-          netinfo.update_value('client_mac', ip_info.dmac.toString(), 'Found Gateway MAC from ARP Mismatch', ip_info)
-          this.emit('client_ip_mac_and_gateway_mac', this.print_info())
-          this.emit('gateway_ip_mac_and_client_mac', this.print_info())
-          netinfo.client_mac = ip_info.dmac.toString()
-          netinfo.start_ttl_search()
+        //avoid multicast issues
+        if((ip_info.dhost.addr[0] & 0xF0) != 0xE0){
+          //mismatch with our collected ARP table means it's a gateway to another IP subnet (aka our gateway)
+          if(ip_info.shost.toString() != netinfo.arp_table.entries[ip_info.smac.toString()]){
+            console.log(`Gateway IP:\t${netinfo.arp_table.entries[ip_info.smac.toString()]}`)
+            netinfo.update_value('gateway_ip', netinfo.arp_table.entries[ip_info.smac.toString()], 'Found Gateway IP from ARP Mismatch', ip_info)
+            console.log(`Gateway MAC:\t${ip_info.smac.toString()}`)
+            netinfo.update_value('gateway_mac', ip_info.smac.toString(), 'Found Gateway MAC from ARP Mismatch', ip_info)
+            console.log(`Host IP:\t${ip_info.dhost.toString()}`)
+            netinfo.update_value('client_ip', ip_info.dhost.toString(), 'Found Client IP from ARP Mismatch', ip_info)
+            console.log(`Host MAC:\t${ip_info.dmac.toString()}`)
+            netinfo.update_value('client_mac', ip_info.dmac.toString(), 'Found Gateway MAC from ARP Mismatch', ip_info)
+            this.emit('client_ip_mac_and_gateway_mac', this.print_info())
+            this.emit('gateway_ip_mac_and_client_mac', this.print_info())
+            netinfo.client_mac = ip_info.dmac.toString()
+            netinfo.start_ttl_search()
+          }
         }
       }
     }
