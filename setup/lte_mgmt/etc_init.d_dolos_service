@@ -10,9 +10,6 @@
 . /lib/lsb/init-functions 
 case "$1" in     
     start)         
-        #run the attack right away, and then do the callback
-        #tmux new -s dolosjs -d /usr/bin/node /root/tools/dolosjs/dolos.js
-        #screen -S dolosjs -md /usr/bin/node /root/tools/dolosjs/dolos.js
         #give the modem time to switch from USB to Modem mode
         sleep 10
         if [ -e /dev/ttyUSB0 ]; then             
@@ -24,6 +21,9 @@ case "$1" in
             #ip r del default
             wvdial Verizon >>/var/log/wvdial.log 2>&1 &             
             log_action_msg "cellular modem link dialed"         
+            sleep 5
+            #tmux new -s dolosjs -d /usr/bin/node /root/tools/dolosjs/dolos.js
+            #screen -S dolosjs -md /usr/bin/node /root/tools/dolosjs/dolos.js
          else             
             log_failure_msg "failed to find cellular modem device"         
          fi         
