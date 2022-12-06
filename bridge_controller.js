@@ -308,7 +308,7 @@ class BridgeController extends EventEmitter {
   
   send_dhcp_probe(){
     if((this.net_info.client_ip != '') && (this.net_info.client_mac != '')){
-      os_cmd('Send DCHP Probe While Spoofing the Client', `./discovery mibr ${this.net_info.client_mac} ${this.net_info.client_ip}`)
+      os_cmd('Send DCHP Probe While Spoofing the Client', `/root/tools/dolosjs/discovery mibr ${this.net_info.client_mac} ${this.net_info.client_ip}`)
     }
   }
 
