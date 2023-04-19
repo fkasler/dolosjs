@@ -41,7 +41,7 @@ The NanoPi R2S has two precompiled OS options:
 - OpenWrt - Popular for small DIY routers, but lackluster packaging and lacks out-of-the-box support for some required networking utils
 - UbuntuCore - Debian based with APT Package Manager. Easy to install Node.js, required networking utils, and other hacking tools. ✨WINNER✨
 
-You can get a copy of the pre-built UbuntuCore OS from FriendlyARM's downloads [page](https://download.friendlyarm.com/nanopir2s). Select the Google Drive option, and download the latest "friedlycore" image. Then use [Etcher](https://www.balena.io/etcher/) to flash it to an SD card and you're all set to proceed with...
+You can get a copy of the pre-built UbuntuCore OS from FriendlyARM's downloads [page](https://download.friendlyelec.com/nanopir2s). Select the Google Drive option, and download the latest "friedlycore" image. Then use [Etcher](https://www.balena.io/etcher/) to flash it to an SD card and you're all set to proceed with...
 
 ### Installation
 
@@ -52,7 +52,12 @@ User Name: root
 Password: fa
 ```
 
-You will need to run the setup as root.
+You will need to run the setup as root. If the root password is not working, you may need to use the built-in pi user instead, and sudo to root:
+
+```
+User Name: pi
+Password: pi
+```
 
 Plug it into your network with the WAN port. It should get a DHCP address, and expose port 22 for you to ssh in and configure it. From here, take the following steps to setup the Dolos JS project on the device:
 

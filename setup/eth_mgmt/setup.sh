@@ -6,7 +6,7 @@ apt update
 apt -y upgrade
 
 #install deps that are absolutely required for the project to work
-apt --assume-yes install nodejs npm libpcap0.8-dev bridge-utils ebtables arptables network-manager
+apt --assume-yes install nodejs npm libpcap0.8-dev bridge-utils iptables ebtables arptables network-manager make g++
 
 #install deps for Ethernet as management interface
 apt --assume-yes install udhcpd
